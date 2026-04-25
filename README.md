@@ -1,5 +1,10 @@
 # Catalogue of Life Converter
 
+<!--PAGES_LINK_BANNER-->
+> 🌐 **Live page:** [https://socrtwo.github.io/catalog-of-life-SF/](https://socrtwo.github.io/catalog-of-life-SF/)  
+> 📦 **Releases:** [github.com/socrtwo/catalog-of-life-SF/releases](https://github.com/socrtwo/catalog-of-life-SF/releases)
+<!--/PAGES_LINK_BANNER-->
+
 Converts the Catalogue of Life database (1.2 million species) into GEDCOM genealogy format, producing over 2 million records. Explores hybridization-driven speciation patterns using a tree-of-life structure.
 
 **Language:** MS Access / VBA  
