@@ -1,0 +1,233 @@
+name: Build platform releases
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g. v1.0.0). Leave blank for "manual-<run>".'
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve tag
+        id: tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
+            tag="${GITHUB_REF_NAME}"
+          elif [ -n "${{ inputs.tag }}" ]; then
+            tag="${{ inputs.tag }}"
+          else
+            tag="manual-${GITHUB_RUN_NUMBER}"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Building $tag"
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mdbtools zip jq python3
+
+      - name: Regenerate CSV / JSON exports
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/exports
+          MDB="Catalogue-of-Life-Converter-1.0.mdb"
+          for t in Top100 Top100family kingdoms taxon_unit_types; do
+            mdb-export "$MDB" "$t" > "build/exports/${t}.csv"
+          done
+          # Schema for power users
+          mdb-schema "$MDB" sqlite > build/exports/schema.sqlite.sql
+          mdb-schema "$MDB" mysql  > build/exports/schema.mysql.sql
+          # Build the JSON bundle
+          python3 - <<'PY'
+          import csv, json, pathlib
+          out = {}
+          for name in ["Top100", "Top100family", "kingdoms", "taxon_unit_types"]:
+              with open(f"build/exports/{name}.csv") as f:
+                  rows = list(csv.DictReader(f))
+              for r in rows:
+                  for k, v in list(r.items()):
+                      if v is None or v == "":
+                          r[k] = None
+                      elif v.lstrip("-").isdigit():
+                          r[k] = int(v)
+              out[name] = rows
+          pathlib.Path("build/exports/data.json").write_text(
+              json.dumps(out, ensure_ascii=False, separators=(",", ":")))
+          PY
+
+      - name: Stage common files
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/common
+          cp Catalogue-of-Life-Converter-1.0.mdb build/common/
+          cp Catalogue-of-Life-Connection.png    build/common/
+          cp INSTRUCTIONS.txt                    build/common/
+          cp LICENSE                             build/common/
+          cp README.md                           build/common/
+          cp -r build/exports/.                  build/common/
+          # Copy platform docs
+          mkdir -p build/common/docs
+          cp -r docs/platforms                   build/common/docs/
+
+      - name: Build platform bundles
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.tag.outputs.tag }}"
+          mkdir -p dist
+
+          build_zip() {
+            local id="$1"; local pretty="$2"
+            local stage="build/stage/$id"
+            rm -rf "$stage"; mkdir -p "$stage"
+
+            # Universal payload
+            cp build/common/Catalogue-of-Life-Converter-1.0.mdb "$stage/"
+            cp build/common/Catalogue-of-Life-Connection.png "$stage/"
+            cp build/common/INSTRUCTIONS.txt "$stage/"
+            cp build/common/LICENSE "$stage/"
+            cp build/common/Top100.csv "$stage/"
+            cp build/common/Top100family.csv "$stage/"
+            cp build/common/kingdoms.csv "$stage/"
+            cp build/common/taxon_unit_types.csv "$stage/"
+            cp build/common/data.json "$stage/"
+            cp build/common/schema.sqlite.sql "$stage/"
+            cp build/common/schema.mysql.sql "$stage/"
+
+            # Platform-specific install guide as the primary README
+            cp "docs/platforms/${id}.md" "$stage/README.md"
+
+            # iOS / Android / Web — also include the HTML viewer so the
+            # data is usable without any install.
+            case "$id" in
+              ios|android|web|chromeos)
+                mkdir -p "$stage/viewer"
+                cp web/index.html  "$stage/viewer/"
+                cp web/viewer.html "$stage/viewer/"
+                cp build/common/data.json "$stage/viewer/"
+                cp build/common/Top100.csv "$stage/viewer/"
+                cp build/common/Top100family.csv "$stage/viewer/"
+                cp build/common/kingdoms.csv "$stage/viewer/"
+                cp build/common/taxon_unit_types.csv "$stage/viewer/"
+                ;;
+            esac
+
+            # A short release manifest
+            cat > "$stage/RELEASE.txt" <<EOF
+          Catalog of Life — $pretty bundle
+          Tag: $TAG
+          Built: $(date -u +%FT%TZ)
+
+          Files in this bundle:
+          - Catalogue-of-Life-Converter-1.0.mdb : original MS Access database
+          - INSTRUCTIONS.txt                   : VBA build procedure
+          - README.md                          : install guide for $pretty
+          - Top100.csv, Top100family.csv,
+            kingdoms.csv, taxon_unit_types.csv : extracted data tables
+          - data.json                          : same data as JSON
+          - schema.sqlite.sql, schema.mysql.sql: schema dumps
+          - viewer/                            : self-contained HTML viewer (mobile / web bundles)
+          EOF
+
+            (cd build/stage && zip -qr "../../dist/catalog-of-life-${id}.zip" "$id")
+            ls -la "dist/catalog-of-life-${id}.zip"
+          }
+
+          build_zip windows  "Windows"
+          build_zip macos    "macOS"
+          build_zip linux    "Linux"
+          build_zip chromeos "ChromeOS"
+          build_zip android  "Android"
+          build_zip ios      "iOS / iPadOS"
+
+          # Web bundle — special-case: ship the static site, not the binary .mdb,
+          # but still include CSV / JSON exports for embedding.
+          stage="build/stage/web"
+          rm -rf "$stage"; mkdir -p "$stage"
+          cp -r web/.                  "$stage/"
+          cp build/common/data.json    "$stage/"
+          cp build/common/Top100.csv   "$stage/"
+          cp build/common/Top100family.csv "$stage/"
+          cp build/common/kingdoms.csv "$stage/"
+          cp build/common/taxon_unit_types.csv "$stage/"
+          cp docs/platforms/web.md     "$stage/README.md"
+          cp LICENSE                   "$stage/"
+          cat > "$stage/RELEASE.txt" <<EOF
+          Catalog of Life — Web bundle
+          Tag: $TAG
+          Built: $(date -u +%FT%TZ)
+
+          Self-contained static site. Open index.html locally or serve with
+          any static-file server. The MS Access database is intentionally
+          excluded from this bundle to keep it small; download a desktop
+          bundle (windows / macos / linux) for the original .mdb.
+          EOF
+          (cd build/stage && zip -qr "../../dist/catalog-of-life-web.zip" web)
+
+          ls -la dist/
+
+      - name: Generate SHA-256 checksums
+        run: |
+          cd dist
+          sha256sum *.zip > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Upload artifacts (always, for inspection)
+        uses: actions/upload-artifact@v4
+        with:
+          name: catalog-of-life-bundles-${{ steps.tag.outputs.tag }}
+          path: dist/
+
+      - name: Create / update GitHub Release
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: ${{ steps.tag.outputs.tag }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          body: |
+            Multi-platform release of **Catalog of Life**.
+
+            Pick the bundle for your platform — every ZIP contains the
+            original `.mdb`, platform-specific install instructions,
+            CSV / JSON exports, and (where useful) a self-contained HTML
+            viewer.
+
+            | Platform | Asset |
+            |---|---|
+            | 🪟 Windows  | `catalog-of-life-windows.zip` |
+            | 🍎 macOS    | `catalog-of-life-macos.zip` |
+            | 🐧 Linux    | `catalog-of-life-linux.zip` |
+            | 💻 ChromeOS | `catalog-of-life-chromeos.zip` |
+            | 🤖 Android  | `catalog-of-life-android.zip` |
+            | 📱 iOS      | `catalog-of-life-ios.zip` |
+            | 🌐 Web      | `catalog-of-life-web.zip` |
+
+            SHA-256 checksums for every asset are in `SHA256SUMS.txt`.
+          files: |
+            dist/catalog-of-life-windows.zip
+            dist/catalog-of-life-macos.zip
+            dist/catalog-of-life-linux.zip
+            dist/catalog-of-life-chromeos.zip
+            dist/catalog-of-life-android.zip
+            dist/catalog-of-life-ios.zip
+            dist/catalog-of-life-web.zip
+            dist/SHA256SUMS.txt

@@ -1,0 +1,10 @@
+rank_name,req_parent_rank,req_rank
+"Class","Phylum","Class"
+"Family","Order","Family"
+"Genus","Family","Genus"
+"Infraspecies","Genus","Species"
+"Kingdom",,"Kingdom"
+"Order","Class","Order"
+"Phylum","Kingdom","Phylum"
+"Species","Genus","Species"
+"Superfamily","Order","Family"

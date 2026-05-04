@@ -1,87 +1,130 @@
-<!--MODERNIZED:v1-->
-# Catalog Of Life
+<!--MODERNIZED:v2-->
+# Catalog of Life
 
-> Migrated from SourceForge via SF2GH Migrator
+> Converts the **Catalogue of Life** taxonomic database (~1.2 million species)
+> into **GEDCOM** genealogy format, producing ~2 million records that can be
+> rendered as a tree-of-life by any genealogy tool.
 
 [![Live page](https://img.shields.io/badge/live-page-ff2e93?style=for-the-badge)](https://socrtwo.github.io/catalog-of-life-SF/)
 [![Releases](https://img.shields.io/github/v/release/socrtwo/catalog-of-life-SF?style=for-the-badge&color=7c3aed)](https://github.com/socrtwo/catalog-of-life-SF/releases)
 [![License](https://img.shields.io/github/license/socrtwo/catalog-of-life-SF?style=for-the-badge&color=22d3ee)](https://github.com/socrtwo/catalog-of-life-SF/blob/main/LICENSE)
 [![Last commit](https://img.shields.io/github/last-commit/socrtwo/catalog-of-life-SF?style=for-the-badge&color=34d399)](https://github.com/socrtwo/catalog-of-life-SF/commits)
 
-🌐 **Live:** https://socrtwo.github.io/catalog-of-life-SF/  
-📦 **Downloads:** [Releases](https://github.com/socrtwo/catalog-of-life-SF/releases)  
+🌐 **Live:** <https://socrtwo.github.io/catalog-of-life-SF/>
+📦 **Downloads:** [Releases](https://github.com/socrtwo/catalog-of-life-SF/releases)
 📂 **Source:** [socrtwo/catalog-of-life-SF](https://github.com/socrtwo/catalog-of-life-SF)
 
 ---
 
-Converts the Catalogue of Life database (1.2 million species) into GEDCOM genealogy format, producing over 2 million records. Explores hybridization-driven speciation patterns using a tree-of-life structure.
+## Downloads
 
-**Language:** MS Access / VBA  
-**License:** MIT
+Pick the bundle for your platform — every release ships a self-contained ZIP
+with the database, platform-specific install notes, CSV / JSON data exports,
+and (where applicable) a built-in HTML viewer.
 
-## Features
+| Platform | Asset | Best for |
+|---|---|---|
+| 🪟 **Windows**  | `catalog-of-life-windows.zip`  | Microsoft Access — full VBA / GEDCOM export |
+| 🍎 **macOS**    | `catalog-of-life-macos.zip`    | LibreOffice Base or `mdbtools` |
+| 🐧 **Linux**    | `catalog-of-life-linux.zip`    | `mdbtools`, SQLite, LibreOffice |
+| 💻 **ChromeOS** | `catalog-of-life-chromeos.zip` | Crostini Linux container or web fallback |
+| 🤖 **Android**  | `catalog-of-life-android.zip`  | AndrOpen Office / Google Sheets / Termux |
+| 📱 **iOS**      | `catalog-of-life-ios.zip`      | Numbers / Excel + bundled HTML viewer |
+| 🌐 **Web**      | `catalog-of-life-web.zip`      | Self-contained static site, runs from `file://` |
 
-- Converts Catalogue of Life species database to GEDCOM format
-- Handles 1.2 million+ species records
-- Outputs 2 million+ genealogy-style records
-- MS Access database with VBA automation
-- Explores hybridization-driven speciation patterns
+Per-platform install instructions live in [`docs/platforms/`](docs/platforms/).
 
-## System Requirements
+## Compatibility matrix
 
-- Microsoft Access 2007 or later
-- Windows 7 or later
+| | Browse data | Run forms / queries | Run VBA / GEDCOM export |
+|---|:---:|:---:|:---:|
+| Windows + Microsoft Access | ✅ | ✅ | ✅ |
+| macOS + LibreOffice Base   | ✅ | partial | ❌ |
+| Linux + LibreOffice Base   | ✅ | partial | ❌ |
+| Linux / macOS + `mdbtools` | ✅ (CLI) | ❌ | ❌ |
+| ChromeOS + Crostini        | ✅ | partial | ❌ |
+| Android + AndrOpen Office  | ✅ | ❌ | ❌ |
+| iOS (CSV / JSON / viewer)  | ✅ | ❌ | ❌ |
+| Web viewer                 | ✅ (sample data) | ❌ | ❌ |
 
-## Installation & Usage
+> Microsoft Access remains the only platform on which the original VBA
+> module (`Genealogy.ExportGED`) can run end-to-end. Every other platform
+> ships pre-extracted data so the dataset is still usable.
 
-### Running
+## What's in this repository
 
-1. Open the `.mdb` or `.accdb` file in Microsoft Access
-2. Enable macros/content when prompted
-3. Use the forms and reports provided
+```
+.
+├── Catalogue-of-Life-Converter-1.0.mdb   — original MS Access database
+├── Catalogue-of-Life-Connection.png      — MySQL connection screenshot
+├── INSTRUCTIONS.txt                      — original VBA build procedure
+├── data/                                 — CSV exports of the small tables
+├── docs/platforms/                       — per-platform install guides
+└── web/                                  — static landing page + viewer
+```
 
-### Without Microsoft Access
+## Quick start
 
-You can view the database tables using the free [MDB Viewer Plus](https://www.alexnolan.net/software/mdbplus.htm).
+### Windows
 
-## Origin
+```text
+1. Install Microsoft Access 2007 or later (or the free Access Runtime).
+2. Open Catalogue-of-Life-Converter-1.0.mdb.
+3. Click "Enable Content" when the security warning appears.
+```
 
-This project was originally hosted on SourceForge and has been migrated to GitHub for easier access and collaboration.
+See [`docs/platforms/windows.md`](docs/platforms/windows.md) for the full
+GEDCOM-generation procedure.
 
-- **SourceForge:** [catalog-of-life](https://sourceforge.net/projects/catalog-of-life/)
-- **Migrated with:** [SF2GH Migrator](https://github.com/socrtwo/sf-to-github)
+### macOS / Linux
+
+```sh
+brew install mdbtools     # macOS
+sudo apt install mdbtools # Debian / Ubuntu
+
+mdb-tables -1 Catalogue-of-Life-Converter-1.0.mdb
+mdb-export Catalogue-of-Life-Converter-1.0.mdb Top100 > Top100.csv
+```
+
+### Web (no install)
+
+Open <https://socrtwo.github.io/catalog-of-life-SF/> — the bundled viewer
+loads the sample dataset directly in the browser.
+
+## How the GEDCOM is produced
+
+The database links to a MySQL instance populated from a Catalogue of Life
+annual checklist (Species 2000), then a VBA module walks the parent / child
+graph and writes a GEDCOM file. The full procedure is in
+[`INSTRUCTIONS.txt`](INSTRUCTIONS.txt). Output is ~2 million records covering
+every species in the source dataset.
 
 ## Contributing
 
-Contributions are welcome! Feel free to:
+```sh
+git checkout -b my-feature
+# ... edits ...
+git commit -m "Describe the change"
+git push origin my-feature
+# open a pull request
+```
 
-1. Fork this repository
-2. Create a feature branch (`git checkout -b my-feature`)
-3. Commit your changes (`git commit -m "Add my feature"`)
-4. Push to the branch (`git push origin my-feature`)
-5. Open a Pull Request
+Issues and pull requests welcome at
+<https://github.com/socrtwo/catalog-of-life-SF/issues>.
+
+## Heritage
+
+This project originated on **SourceForge** before being migrated to GitHub
+with [SF2GH Migrator](https://github.com/socrtwo/sf-to-github). The
+SourceForge entry, if still available:
+<https://sourceforge.net/projects/catalog-of-life/>.
+
+The repository here at `socrtwo/catalog-of-life-SF` is the canonical,
+actively-maintained home.
 
 ## License
 
-MIT License — see [LICENSE](LICENSE) for details.
-
----
-
-## 📜 SourceForge heritage
-
-This project originated on **SourceForge** before being migrated to GitHub. The legacy SourceForge entry, if still available, can be searched at:
-
-🔗 https://sourceforge.net/projects/catalog-of-life/
-
-The repository here at `socrtwo/catalog-of-life-SF` is the canonical, actively-maintained home. All future updates, issue tracking, and releases happen on GitHub.
-
-## 🛠️ Contributing
-
-Issues and pull requests are welcome at [https://github.com/socrtwo/catalog-of-life-SF/issues](https://github.com/socrtwo/catalog-of-life-SF/issues).
-
-## 📝 License
-
-See the [LICENSE](https://github.com/socrtwo/catalog-of-life-SF/blob/main/LICENSE) file in this repository. If no license file is present, the project is shared as-is for reference and personal use; please contact the maintainer for other use cases.
+MIT — see [`LICENSE`](LICENSE).
 
 ---
 

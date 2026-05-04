@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f0322">
+<title>Catalog of Life — Dataset Viewer</title>
+<style>
+  :root { color-scheme: dark; }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { min-height: 100%; }
+  body {
+    font-family: 'Inter', -apple-system, system-ui, sans-serif;
+    background: radial-gradient(ellipse at top, #0f0322 0%, #08010f 70%);
+    color: #f5f3ff;
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.6;
+    padding: 32px 16px 80px;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; }
+  h1 {
+    font-size: 2rem; font-weight: 800; letter-spacing: -0.02em;
+    background: linear-gradient(135deg, #ff2e93 0%, #22d3ee 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    margin-bottom: 4px;
+  }
+  .sub { color: rgba(245,243,255,0.7); margin-bottom: 24px; }
+  .tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+  .tab {
+    padding: 8px 14px; border-radius: 999px; cursor: pointer; font-size: 0.9rem; font-weight: 600;
+    background: rgba(20,10,40,0.6); border: 1px solid rgba(255,255,255,0.12);
+    color: #f5f3ff; transition: all .15s;
+  }
+  .tab:hover { border-color: #7c3aed; }
+  .tab.active { background: linear-gradient(135deg, #ff2e93, #7c3aed); border-color: transparent; }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; align-items: center; }
+  .controls input, .controls select {
+    background: rgba(20,10,40,0.6); border: 1px solid rgba(255,255,255,0.12); color: #f5f3ff;
+    padding: 8px 12px; border-radius: 8px; font-size: 0.9rem; min-width: 220px;
+  }
+  .controls input:focus, .controls select:focus { outline: none; border-color: #7c3aed; }
+  .meta { color: rgba(245,243,255,0.55); font-size: 0.85rem; margin-left: auto; }
+  .table-wrap {
+    background: rgba(20,10,40,0.55); border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 14px; overflow: hidden; backdrop-filter: blur(12px);
+  }
+  .scroll { max-height: 70vh; overflow: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.06); }
+  th {
+    position: sticky; top: 0; background: rgba(15,3,34,0.95); cursor: pointer;
+    user-select: none; font-weight: 700; letter-spacing: 0.01em;
+  }
+  th:hover { color: #22d3ee; }
+  th .arrow { opacity: 0.4; margin-left: 4px; font-size: 0.75em; }
+  th.sorted .arrow { opacity: 1; color: #ff2e93; }
+  tr:hover td { background: rgba(124,58,237,0.08); }
+  td { color: rgba(245,243,255,0.85); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .empty { padding: 32px; text-align: center; color: rgba(245,243,255,0.5); }
+  .stats {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 10px; margin-bottom: 18px;
+  }
+  .stat {
+    background: rgba(20,10,40,0.55); border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px; padding: 14px 16px;
+  }
+  .stat .n { font-size: 1.6rem; font-weight: 800;
+    background: linear-gradient(90deg, #ff2e93, #22d3ee);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .stat .l { font-size: 0.78rem; color: rgba(245,243,255,0.6); text-transform: uppercase; letter-spacing: 0.06em; }
+  a.back { color: #22d3ee; text-decoration: none; font-size: 0.9rem; }
+  a.back:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p style="margin-bottom:12px"><a class="back" href="./">← Back to home</a></p>
+  <h1>Catalog of Life — Dataset Viewer</h1>
+  <p class="sub">Interactive view of the bundled sample dataset (top-100 taxa with full Linnean lineage). The full ~2 million record GEDCOM is produced from the original <code>.mdb</code> via Microsoft Access — see the platform docs for instructions.</p>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="tabs" id="tabs"></div>
+
+  <div class="controls">
+    <input id="filter" type="search" placeholder="Filter rows…" autocomplete="off">
+    <span class="meta" id="meta"></span>
+  </div>
+
+  <div class="table-wrap">
+    <div class="scroll">
+      <table id="grid">
+        <thead><tr id="head"></tr></thead>
+        <tbody id="body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+(async function () {
+  const data = await fetch('./data.json').then(r => r.json());
+
+  const tableNames = ['Top100', 'Top100family', 'kingdoms', 'taxon_unit_types'];
+  let active = 'Top100';
+  let sortKey = null;
+  let sortDir = 1;
+
+  // Stats panel
+  const stats = document.getElementById('stats');
+  const sCards = [
+    { n: data.Top100.length, l: 'Sample taxa' },
+    { n: data.kingdoms.length, l: 'Kingdoms' },
+    { n: data.Top100family.length, l: 'Parent links' },
+    { n: data.taxon_unit_types.length, l: 'Rank types' },
+  ];
+  for (const s of sCards) {
+    const d = document.createElement('div');
+    d.className = 'stat';
+    d.innerHTML = `<div class="n">${s.n.toLocaleString()}</div><div class="l">${s.l}</div>`;
+    stats.appendChild(d);
+  }
+
+  // Tabs
+  const tabsEl = document.getElementById('tabs');
+  for (const name of tableNames) {
+    const t = document.createElement('button');
+    t.className = 'tab' + (name === active ? ' active' : '');
+    t.textContent = name;
+    t.onclick = () => {
+      active = name; sortKey = null;
+      document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active', x.textContent === name));
+      render();
+    };
+    tabsEl.appendChild(t);
+  }
+
+  const filter = document.getElementById('filter');
+  filter.addEventListener('input', render);
+
+  function render() {
+    const rows = data[active];
+    const cols = rows.length ? Object.keys(rows[0]) : [];
+    const q = filter.value.trim().toLowerCase();
+
+    let view = rows;
+    if (q) {
+      view = view.filter(r => cols.some(c => String(r[c] ?? '').toLowerCase().includes(q)));
+    }
+    if (sortKey) {
+      view = [...view].sort((a, b) => {
+        const av = a[sortKey], bv = b[sortKey];
+        if (av == null && bv == null) return 0;
+        if (av == null) return 1;
+        if (bv == null) return -1;
+        if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * sortDir;
+        return String(av).localeCompare(String(bv)) * sortDir;
+      });
+    }
+
+    const head = document.getElementById('head');
+    head.innerHTML = '';
+    for (const c of cols) {
+      const th = document.createElement('th');
+      th.textContent = c;
+      const arrow = document.createElement('span');
+      arrow.className = 'arrow';
+      arrow.textContent = sortKey === c ? (sortDir === 1 ? '▲' : '▼') : '↕';
+      th.appendChild(arrow);
+      if (sortKey === c) th.classList.add('sorted');
+      th.onclick = () => {
+        if (sortKey === c) sortDir = -sortDir; else { sortKey = c; sortDir = 1; }
+        render();
+      };
+      head.appendChild(th);
+    }
+
+    const body = document.getElementById('body');
+    body.innerHTML = '';
+    if (!view.length) {
+      const tr = document.createElement('tr');
+      const td = document.createElement('td');
+      td.colSpan = cols.length || 1;
+      td.className = 'empty';
+      td.textContent = q ? 'No rows match your filter.' : 'No rows in this table.';
+      tr.appendChild(td); body.appendChild(tr);
+    } else {
+      const frag = document.createDocumentFragment();
+      for (const r of view) {
+        const tr = document.createElement('tr');
+        for (const c of cols) {
+          const td = document.createElement('td');
+          const v = r[c];
+          if (typeof v === 'number') td.className = 'num';
+          td.textContent = v == null ? '' : v;
+          tr.appendChild(td);
+        }
+        frag.appendChild(tr);
+      }
+      body.appendChild(frag);
+    }
+
+    document.getElementById('meta').textContent =
+      `${view.length.toLocaleString()} of ${rows.length.toLocaleString()} rows`;
+  }
+
+  render();
+})();
+</script>
+</body>
+</html>

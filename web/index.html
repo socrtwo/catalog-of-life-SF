@@ -50,6 +50,30 @@
     backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
   }
   .links a:hover { transform: translateY(-1px); border-color: #7c3aed; background: rgba(124,58,237,0.18); }
+  .platforms {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px; margin: 0 0 28px;
+  }
+  .platform {
+    display: flex; flex-direction: column; gap: 4px;
+    padding: 14px 16px; text-decoration: none; color: #f5f3ff;
+    background: rgba(20,10,40,0.55); border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 14px; transition: transform .15s, border-color .15s, background .15s;
+    backdrop-filter: blur(12px);
+  }
+  .platform:hover { transform: translateY(-1px); border-color: #7c3aed; background: rgba(124,58,237,0.14); }
+  .platform .name { font-weight: 700; font-size: 0.95rem; }
+  .platform .meta { font-size: 0.75rem; color: rgba(245,243,255,0.55); }
+  .platform .icon { font-size: 1.4rem; }
+  .viewer-cta {
+    display: inline-flex; align-items: center; gap: 6px; padding: 12px 20px;
+    background: linear-gradient(135deg, #ff2e93, #7c3aed); color: white;
+    text-decoration: none; border-radius: 999px; font-weight: 700; font-size: 0.95rem;
+    margin: 0 0 28px;
+  }
+  .viewer-cta:hover { transform: translateY(-1px); }
+  h2.section { font-size: 1.05rem; font-weight: 700; margin: 22px 0 10px;
+    color: rgba(245,243,255,0.85); letter-spacing: 0.02em; }
   .card {
     padding: 32px 28px;
     background: rgba(20,10,40,0.55);
@@ -100,6 +124,9 @@
     <h1 id="title">Loading…</h1>
     <p id="desc"></p>
     <nav class="links" id="links"></nav>
+    <a class="viewer-cta" href="./viewer.html">🔭  Open dataset viewer →</a>
+    <h2 class="section">Downloads — pick your platform</h2>
+    <nav class="platforms" id="platforms"></nav>
   </header>
   <main class="card" id="readme">
     <p class="loading">Fetching README…</p>
@@ -139,6 +166,34 @@
     mk(repoUrl + '/releases', 'Releases', '⬇');
     mk(repoUrl + '/issues', 'Issues', '💬');
   } catch (e) { /* ignore */ }
+
+  // Platform download grid — assets are produced by the release workflow
+  const platforms = [
+    { id: 'windows',  name: 'Windows',  icon: '🪟', note: '.mdb + Access docs' },
+    { id: 'macos',    name: 'macOS',    icon: '🍎', note: 'LibreOffice / mdbtools' },
+    { id: 'linux',    name: 'Linux',    icon: '🐧', note: 'mdbtools + SQLite' },
+    { id: 'chromeos', name: 'ChromeOS', icon: '💻', note: 'Crostini / web' },
+    { id: 'android',  name: 'Android',  icon: '🤖', note: 'CSV + AndrOpen' },
+    { id: 'ios',      name: 'iOS',      icon: '📱', note: 'Numbers + viewer' },
+    { id: 'web',      name: 'Web',      icon: '🌐', note: 'Static site bundle' },
+  ];
+  const grid = document.getElementById('platforms');
+  let latestTag = 'latest';
+  try {
+    const rel = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/latest`, { headers })
+      .then(r => r.ok ? r.json() : null);
+    if (rel && rel.tag_name) latestTag = rel.tag_name;
+  } catch (e) { /* ignore */ }
+  for (const p of platforms) {
+    const a = document.createElement('a');
+    a.className = 'platform';
+    a.href = `${repoUrl}/releases/latest/download/catalog-of-life-${p.id}.zip`;
+    a.rel = 'noopener';
+    a.innerHTML = `<span class="icon">${p.icon}</span>` +
+      `<span class="name">${p.name}</span>` +
+      `<span class="meta">${p.note}</span>`;
+    grid.appendChild(a);
+  }
 
   // README — try a few branches & casings
   const branches = ['main', 'master'];
